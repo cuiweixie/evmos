@@ -1,9 +1,14 @@
 package keeper_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
+
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/evmos/evmos/v15/precompiles/staking"
 
 	"github.com/cometbft/cometbft/crypto/tmhash"
 	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
@@ -681,6 +686,96 @@ func (suite *KeeperTestSuite) TestApplyMessageWithConfig() {
 			suite.Require().NoError(err)
 			suite.Require().False(res.Failed())
 			suite.Require().Equal(expectedGasUsed, res.GasUsed)
+		})
+	}
+}
+
+func (suite *KeeperTestSuite) TestEstimateGasNeedSameAsExecuteEthereumMsg() {
+	var (
+		msg      core.Message
+		err      error
+		config   *statedb.EVMConfig
+		txConfig statedb.TxConfig
+		args     types.TransactionArgs
+	)
+
+	testCases := []struct {
+		name     string
+		malleate func()
+		expErr   bool
+	}{
+		{
+			"estimate gas should be same as execute ethereum msg",
+			func() {
+				contract := common.HexToAddress("0x0000000000000000000000000000000000000800")
+				nonce := suite.app.EvmKeeper.GetNonce(suite.ctx, suite.address)
+				abi, _ := staking.LoadABI()
+				validators := suite.app.StakingKeeper.GetValidators(suite.ctx, 1)
+				data, _ := abi.Pack(staking.ValidatorMethod, validators[0].OperatorAddress)
+				var nilBigInt *big.Int
+				msg = ethtypes.NewMessage(
+					suite.address,
+					&contract,
+					nonce,
+					big.NewInt(0),   // amount
+					30000,           // gasLimit
+					big.NewInt(100), // gasPrice
+					nilBigInt,       // gasFeeCap
+					nilBigInt,       // gasTipCap
+					data,
+					ethtypes.AccessList{}, // AccessList
+					true,                  // isFake
+				)
+
+				args.From = &suite.address
+				args.To = &contract
+				gas := hexutil.Uint64(msg.Gas())
+				args.Gas = &gas
+				args.GasPrice = (*hexutil.Big)(msg.GasPrice())
+				args.Value = (*hexutil.Big)(msg.Value())
+				argsNonce := hexutil.Uint64(msg.Nonce())
+				args.Nonce = &argsNonce
+				dataBytes := hexutil.Bytes(msg.Data())
+				args.Data = &dataBytes
+				args.AccessList = &ethtypes.AccessList{}
+			},
+			true,
+		},
+	}
+
+	for _, tc := range testCases {
+		suite.Run(fmt.Sprintf("Case %s", tc.name), func() {
+			suite.SetupTest()
+
+			proposerAddress := suite.ctx.BlockHeader().ProposerAddress
+			config, err = suite.app.EvmKeeper.EVMConfig(suite.ctx, proposerAddress, big.NewInt(9000))
+			suite.Require().NoError(err)
+
+			txConfig = suite.app.EvmKeeper.TxConfig(suite.ctx, common.Hash{})
+
+			tc.malleate()
+
+			argsBytes, err := json.Marshal(args)
+			suite.Require().NoError(err)
+
+			gasCap := uint64(25_000_000)
+
+			estimateGasReq := &types.EthCallRequest{
+				Args:            argsBytes,
+				GasCap:          gasCap,
+				ProposerAddress: suite.ctx.BlockHeader().ProposerAddress,
+			}
+
+			estimateGasRes, err := suite.app.EvmKeeper.EstimateGas(suite.ctx, estimateGasReq)
+			suite.Require().NoError(err)
+
+			suite.ctx = suite.ctx.WithGasMeter(sdk.NewInfiniteGasMeter()).WithKVGasConfig(storetypes.GasConfig{}).
+				WithTransientKVGasConfig(storetypes.GasConfig{})
+			res, err := suite.app.EvmKeeper.ApplyMessageWithConfig(suite.ctx, msg, nil, false, config, txConfig)
+
+			suite.Require().NoError(err)
+			suite.Require().False(res.Failed())
+			suite.Require().Equal(res.GasUsed, estimateGasRes.Gas)
 		})
 	}
 }
