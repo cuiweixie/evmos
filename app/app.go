@@ -581,6 +581,8 @@ func NewEvmos(
 			app.AuthzKeeper,
 			app.TransferKeeper,
 			app.IBCKeeper.ChannelKeeper,
+			app.BankKeeper,
+			app.Erc20Keeper,
 		),
 	)
 

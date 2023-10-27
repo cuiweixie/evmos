@@ -5,6 +5,8 @@ package keeper
 
 import (
 	"fmt"
+	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
+	erc20keeper "github.com/evmos/evmos/v15/x/erc20/keeper"
 
 	"golang.org/x/exp/maps"
 
@@ -15,6 +17,7 @@ import (
 	distributionkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	channelkeeper "github.com/cosmos/ibc-go/v7/modules/core/04-channel/keeper"
+	bankprecompile "github.com/evmos/evmos/v15/precompiles/bank"
 	distprecompile "github.com/evmos/evmos/v15/precompiles/distribution"
 	ics20precompile "github.com/evmos/evmos/v15/precompiles/ics20"
 	"github.com/evmos/evmos/v15/precompiles/p256"
@@ -33,12 +36,19 @@ func AvailablePrecompiles(
 	authzKeeper authzkeeper.Keeper,
 	transferKeeper transferkeeper.Keeper,
 	channelKeeper channelkeeper.Keeper,
+	bankKeeper bankkeeper.Keeper,
+	erc20Keeper erc20keeper.Keeper,
 ) map[common.Address]vm.PrecompiledContract {
 	// Clone the mapping from the latest EVM fork.
 	precompiles := maps.Clone(vm.PrecompiledContractsBerlin)
 
 	// secp256r1 precompile as per EIP-7212
 	p256Precompile := &p256.Precompile{}
+
+	bankPrecompile, err := bankprecompile.NewPrecompile(bankKeeper, erc20Keeper)
+	if err != nil {
+		panic(fmt.Errorf("failed to load staking precompile: %w", err))
+	}
 
 	stakingPrecompile, err := stakingprecompile.NewPrecompile(stakingKeeper, authzKeeper)
 	if err != nil {
@@ -65,6 +75,7 @@ func AvailablePrecompiles(
 	precompiles[distributionPrecompile.Address()] = distributionPrecompile
 	precompiles[vestingPrecompile.Address()] = vestingPrecompile
 	precompiles[ibcTransferPrecompile.Address()] = ibcTransferPrecompile
+	precompiles[bankPrecompile.Address()] = bankPrecompile
 	return precompiles
 }
 
