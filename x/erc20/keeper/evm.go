@@ -5,6 +5,7 @@ package keeper
 
 import (
 	"encoding/json"
+	evmkeeper "github.com/evmos/evmos/v15/x/evm/keeper"
 	"math/big"
 
 	errorsmod "cosmossdk.io/errors"
@@ -186,10 +187,10 @@ func (k Keeper) CallEVMWithData(
 			return nil, errorsmod.Wrapf(errortypes.ErrJSONMarshal, "failed to marshal tx args: %s", err.Error())
 		}
 
-		gasRes, err := k.evmKeeper.EstimateGas(sdk.WrapSDKContext(ctx), &evmtypes.EthCallRequest{
+		gasRes, err := k.evmKeeper.EstimateGasInternal(sdk.WrapSDKContext(ctx), &evmtypes.EthCallRequest{
 			Args:   args,
 			GasCap: config.DefaultGasCap,
-		})
+		}, evmkeeper.FromTypeInternal)
 		if err != nil {
 			return nil, err
 		}

@@ -255,8 +255,16 @@ func (k Keeper) EthCall(c context.Context, req *types.EthCallRequest) (*types.Ms
 	return res, nil
 }
 
+const (
+	FromTypeRPC      = 1
+	FromTypeInternal = 2
+)
+
 // EstimateGas implements eth_estimateGas rpc api.
 func (k Keeper) EstimateGas(c context.Context, req *types.EthCallRequest) (*types.EstimateGasResponse, error) {
+	return k.EstimateGasInternal(c, req, FromTypeRPC)
+}
+func (k Keeper) EstimateGasInternal(c context.Context, req *types.EthCallRequest, fromType int) (*types.EstimateGasResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "empty request")
 	}
