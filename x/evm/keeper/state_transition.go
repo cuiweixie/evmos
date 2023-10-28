@@ -3,6 +3,7 @@
 package keeper
 
 import (
+	"context"
 	"math/big"
 
 	"golang.org/x/exp/slices"
@@ -153,6 +154,9 @@ func (k *Keeper) ApplyTransaction(ctx sdk.Context, tx *ethtypes.Transaction) (*t
 		return nil, errorsmod.Wrap(err, "failed to return ethereum transaction as core message")
 	}
 
+	baseCtx := context.WithValue(context.Background(), "gas", msg.Gas())
+	baseCtx = context.WithValue(baseCtx, "type", "tx")
+	ctx = ctx.WithContext(baseCtx)
 	// snapshot to contain the tx processing and post processing in same scope
 	var commit func()
 	tmpCtx := ctx

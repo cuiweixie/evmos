@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/evmos/evmos/v15/debuglog"
 	"strconv"
 
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
@@ -43,11 +44,16 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 		labels = append(labels, telemetry.NewLabel("execution", "call"))
 	}
 
+	debuglog.GetLogger().Info("start of EthereumTx", "tx", txIndex, "from", sender, "to", tx.To().String(), "amount", tx.Value().String(), "gas", tx.Gas(), "gasPrice", tx.GasPrice().String(), "data", tmbytes.HexBytes(tx.Data()).String())
+	debuglog.GetLogger().Info("gas consumed", ctx.GasMeter().GasConsumed())
+	defer func() {
+		debuglog.GetLogger().Info("end of EthereumTx")
+	}()
 	response, err := k.ApplyTransaction(ctx, tx)
 	if err != nil {
 		return nil, errorsmod.Wrap(err, "failed to apply transaction")
 	}
-
+	debuglog.GetLogger().Info("gas used", "GasUsed", response.GasUsed, "from", sender, "nonce", tx.Nonce())
 	defer func() {
 		telemetry.IncrCounterWithLabels(
 			[]string{"tx", "msg", "ethereum_tx", "total"},

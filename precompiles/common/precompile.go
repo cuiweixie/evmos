@@ -4,6 +4,7 @@ package common
 
 import (
 	"fmt"
+	"github.com/evmos/evmos/v15/debuglog"
 	"time"
 
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
@@ -71,7 +72,7 @@ func (p Precompile) RunSetup(
 	}
 
 	initialGas := ctx.GasMeter().GasConsumed()
-
+	debuglog.GetLogger().Info("initial gas", "initialGas", initialGas)
 	defer HandleGasError(ctx, contract, initialGas, &err)()
 
 	// set the default SDK gas configuration to track gas usage

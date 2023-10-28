@@ -5,6 +5,8 @@ package staking
 
 import (
 	"embed"
+	"fmt"
+	"github.com/evmos/evmos/v15/debuglog"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
@@ -141,6 +143,9 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 
 	cost := ctx.GasMeter().GasConsumed() - initialGas
 
+	//msgGas := ctx.Context().Value("gas").(uint64)
+	msgType := ctx.Context().Value("type").(string)
+	debuglog.GetLogger().Info(fmt.Sprintf("Precompile %s %s used %d gas", msgType, method.Name, cost))
 	if !contract.UseGas(cost) {
 		return nil, vm.ErrOutOfGas
 	}

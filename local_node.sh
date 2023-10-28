@@ -228,6 +228,7 @@ if [[ $overwrite == "y" || $overwrite == "Y" ]]; then
 fi
 
 # Start the node
+echo evmosd start --metrics "$TRACE" --log_level $LOGLEVEL --minimum-gas-prices=0.0001aevmos --json-rpc.api eth,txpool,personal,net,debug,web3 --home "$HOMEDIR" --chain-id "$CHAINID"
 evmosd start \
 	--metrics "$TRACE" \
 	--log_level $LOGLEVEL \

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/evmos/evmos/v15/debuglog"
 	"math/big"
 	"time"
 
@@ -323,6 +324,10 @@ func (k Keeper) EstimateGas(c context.Context, req *types.EthCallRequest) (*type
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	debuglog.GetLogger().Info("start of estimate gas", "msg", msg, "gasCap", gasCap)
+	defer func() {
+		debuglog.GetLogger().Info("end of estimate gas")
+	}()
 	// NOTE: the errors from the executable below should be consistent with go-ethereum,
 	// so we don't wrap them with the gRPC status code
 
@@ -346,14 +351,23 @@ func (k Keeper) EstimateGas(c context.Context, req *types.EthCallRequest) (*type
 		// make gas config is same as execution, so we can get the correct gas used
 		ctx = ctx.WithGasMeter(sdk.NewInfiniteGasMeter()).WithKVGasConfig(storetypes.GasConfig{}).
 			WithTransientKVGasConfig(storetypes.GasConfig{})
+		baseCtx := context.WithValue(context.Background(), "gas", gas)
+		baseCtx = context.WithValue(baseCtx, "type", "estimate")
+		ctx := ctx.WithContext(baseCtx)
+
 		// pass false to not commit StateDB
-		rsp, err = k.ApplyMessageWithConfig(ctx, msg, nil, false, cfg, txConfig)
+		debuglog.GetLogger().Info("gas limit", msg.Gas())
+		//var commit func()
+		tmpCtx := ctx
+		tmpCtx, _ = ctx.CacheContext()
+		rsp, err = k.ApplyMessageWithConfig(tmpCtx, msg, nil, false, cfg, txConfig)
 		if err != nil {
 			if errors.Is(err, core.ErrIntrinsicGas) {
 				return true, nil, nil // Special case, raise gas limit
 			}
 			return true, nil, err // Bail out
 		}
+		debuglog.GetLogger().Info("estimate gas used", "used", rsp.GasUsed)
 		return len(rsp.VmError) > 0, rsp, nil
 	}
 
@@ -381,6 +395,7 @@ func (k Keeper) EstimateGas(c context.Context, req *types.EthCallRequest) (*type
 			return nil, fmt.Errorf("gas required exceeds allowance (%d)", gasCap)
 		}
 	}
+	debuglog.GetLogger().Info("estimate gas", "gas", hi)
 	return &types.EstimateGasResponse{Gas: hi}, nil
 }
 

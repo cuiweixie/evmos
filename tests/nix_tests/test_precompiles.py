@@ -188,6 +188,7 @@ def test_staking(ibc):
         {"from": ADDRS["signer2"], "gasPrice": evmos_gas_price}
     )
     gas_estimation = evmos.w3.eth.estimate_gas(tx)
+    tx["gas"] = int(gas_estimation*1.3)
     print(tx)
     receipt = send_transaction(w3, tx, KEYS["signer2"])
 

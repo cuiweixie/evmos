@@ -4,7 +4,10 @@
 package staking
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/evmos/evmos/v15/debuglog"
+	"os"
 	"time"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -102,10 +105,25 @@ func (p Precompile) Delegate(
 
 	// Execute the transaction using the message server
 	msgSrv := stakingkeeper.NewMsgServerImpl(&p.stakingKeeper)
+	before := ctx.GasMeter().GasConsumed()
+	debugGasMeter := debuglog.NewDebugGasMeter(ctx.GasMeter())
+	ctx = ctx.WithGasMeter(debugGasMeter)
 	if _, err = msgSrv.Delegate(sdk.WrapSDKContext(ctx), msg); err != nil {
 		return nil, err
 	}
 
+	after := ctx.GasMeter().GasConsumed()
+	msgGas := ctx.Context().Value("gas").(uint64)
+	msgType := ctx.Context().Value("type").(string)
+	fileName := fmt.Sprintf("/Users/xiecui/debug/%s_%d.log", msgType, msgGas)
+	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		return nil, err
+	}
+	bs, _ := json.Marshal(debugGasMeter.GetRecords())
+	file.Write(bs)
+	debuglog.GetLogger().Info("staking.Delegate", "gas", "before", before, "after", after, "cost", after-before)
+	debuglog.GetLogger().Info("kv config", fmt.Sprintf("%#v %#v", ctx.KVGasConfig(), ctx.TransientKVGasConfig()))
 	// Only update the authorization if the contract caller is different from the origin
 	if !isCallerOrigin {
 		if err := p.UpdateStakingAuthorization(ctx, contract.CallerAddress, delegatorHexAddr, stakeAuthz, expiration, DelegateMsg, msg); err != nil {
@@ -124,6 +142,7 @@ func (p Precompile) Delegate(
 		stateDB.(*statedb.StateDB).SubBalance(contract.CallerAddress, msg.Amount.Amount.BigInt())
 	}
 
+	debuglog.GetLogger().Info("staking.Delegate", "result", "success", "gas consumed", ctx.GasMeter().GasConsumed())
 	return method.Outputs.Pack(true)
 }
 
