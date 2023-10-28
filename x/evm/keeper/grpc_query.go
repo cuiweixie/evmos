@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	"math/big"
 	"time"
 
@@ -341,8 +342,23 @@ func (k Keeper) EstimateGas(c context.Context, req *types.EthCallRequest) (*type
 			msg.IsFake(),
 		)
 
+		ctx = ctx.WithGasMeter(sdk.NewGasMeter(msg.Gas())).WithKVGasConfig(storetypes.GasConfig{}).
+			WithTransientKVGasConfig(storetypes.GasConfig{})
+		tmpCtx, _ := ctx.CacheContext()
+
+		acct := k.GetAccount(tmpCtx, msg.From())
+
+		from := msg.From()
+		if acct == nil {
+			acc := k.accountKeeper.NewAccountWithAddress(tmpCtx, from[:])
+			k.accountKeeper.SetAccount(tmpCtx, acc)
+			acct = statedb.NewEmptyAccount()
+		}
+		acct.Nonce = nonce + 1
+		k.SetAccount(tmpCtx, from, *acct)
+
 		// pass false to not commit StateDB
-		rsp, err = k.ApplyMessageWithConfig(ctx, msg, nil, false, cfg, txConfig)
+		rsp, err = k.ApplyMessageWithConfig(tmpCtx, msg, nil, false, cfg, txConfig)
 		if err != nil {
 			if errors.Is(err, core.ErrIntrinsicGas) {
 				return true, nil, nil // Special case, raise gas limit
